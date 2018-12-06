@@ -12,7 +12,7 @@ colnames(target_peaks) <- c('p_chr','p_start','p_end','peak')
 gtf <- read_format('data/gencode.v27.basic.annotation.gtf')
 gtf_df <- as.data.frame(gtf)
 all_genes <- unique(gtf_df$gene_name)
-all_genes_plus <- filter(gtf_df, strand=='+')[,'gene_name']%>%unique
+#all_genes_plus <- filter(gtf_df, strand=='+')[,'gene_name']%>%unique
 getOption("mc.cores", 2L)
 make_matrix <- function(gtf,gene,target_peaks){
     #a=Sys.time()
@@ -33,35 +33,64 @@ make_matrix <- function(gtf,gene,target_peaks){
         tx <- unique(gtf_gene_introns[,'transcript_id'])%>%na.omit%>%.[[1]]
         gtf_target_tx <- filter(gtf_gene_introns, transcript_id==tx)
     }
-    
+    strand=filter(gtf_target_tx, feature=='transcript')[,'strand']%>%as.character()
     ex_int_bed <- filter(gtf_target_tx, feature%in%c('exon','intron'))%>%select( seqnames, start, end, feature,score,strand)
+    # swap if  - stranded,
+    if(strand=='-') ex_int_bed <- filter(gtf_target_tx, feature%in%c('exon','intron'))%>%select( seqnames,end,start, feature,score,strand)
+    colnames(ex_int_bed) <- c("seqnames","start", "end" , "feature"  , "score" ,  "strand")
     #now lets make the distance bins
     # struct-1000000 -100000 -10000 -1000 TSS]  [TES +1000 +10000 +100000 +1000000
     #b=Sys.time()
     #c=Sys.time()
     make_bins <- function(TSS, TES, locs, strand,chr){
-        last=0
-        upres=list()
-        downres=list()
-        i=1
-        for( loc in locs){
-            downres[[i]] <- data.frame(seqnames=chr,start=TES+last,end=TES+loc,feature=paste0('ds',loc/1000,'k'),score=NA,strand=strand)
-            upres[[i]] <- data.frame(seqnames=chr,start=TSS-loc,end= TSS-last,feature=paste0('us',loc/1000,'k'),score=NA,strand=strand)
-            last=loc
-            i <- i+1
+        if (strand=='+'){
+            # might want to check the whole start end thing
+            upres=list()
+            downres=list()
+            i=1
+            for( loc in locs){
+                downres[[i]] <- data.frame(seqnames=chr,start=TES+last,end=TES+loc,feature=paste0('ds',loc/1000,'k'),score=NA,strand=strand)
+                upres[[i]] <- data.frame(seqnames=chr,start=TSS-loc,end= TSS-last,feature=paste0('us',loc/1000,'k'),score=NA,strand=strand)
+                last=loc
+                i <- i+1
+            }
+            #account for genes at the begnining of a chrom; currently nor accounting for gens at the end of a chrom
+            upres_valid <- (lapply(upres, function(x) x[,'end']>0)%>%unlist)%>%upres[.]
+            if(length(upres_valid)<length(upres) || upres_valid[[length(upres_valid)]][,'start']<0 ) upres_valid[[length(upres_valid)]][,'start'] <- 0
+            return(do.call(rbind,c(upres_valid,downres)))
+        }else{
+            tmp <- TSS
+            TSS <- TES
+            TES <- tmp
+            last=0
+            upres=list()
+            downres=list()
+            i=1
+            for( loc in locs){
+                upres[[i]] <- data.frame(seqnames=chr,start=TSS+loc,end= TSS+last,feature=paste0('us',loc/1000,'k'),score=NA,strand=strand)
+                downres[[i]] <- data.frame(seqnames=chr,start=TES-last,end=TES-loc,feature=paste0('ds',loc/1000,'k'),score=NA,strand=strand)
+                last=loc
+                i <- i+1
+            }
+            downres_valid <- (lapply(downres, function(x) x[,'start']>0)%>%unlist)%>%downres[.]
+            if(length(downres_valid)<length(downres) || downres_valid[[length(downres_valid)]][,'end']<0) downres_valid[[length(downres_valid)]][,'end'] <- 0
+            return(do.call(rbind,c(upres,downres_valid)))
+            
+            
+            
         }
-        #account for genes at the begnining of a chrom; currently nor accounting for gens at the end of a chrom
-        upres_valid <- (lapply(upres, function(x) x[,'end']>0)%>%unlist)%>%upres[.]
-        if(length(upres_valid)<length(upres)) upres_valid[[length(upres_valid)]][,'start'] <- 0
-        return(do.call(rbind,c(upres_valid,downres)))
+        
     }
     TSS=filter(gtf_target_tx, feature=='transcript')[,'start']
     TES=filter(gtf_target_tx, feature=='transcript')[,'end']
-    strand=filter(gtf_target_tx, feature=='transcript')[,'strand']%>%as.character()
     chr=filter(gtf_target_tx, feature=='transcript')[,'seqnames']%>%as.character()
     locs <- c(1000, 10000, 100000,1000000)
     all_features_bed <- rbind(ex_int_bed, make_bins(TSS,TES,locs,strand,chr),stringsAsFactors=F)
-    
+    # swapping back if - stranded
+    if (strand=='-') all_features_bed <- select(all_features_bed, seqnames,end,start, feature,score,strand)
+    colnames(all_features_bed) <- c("seqnames","start", "end" , "feature"  , "score" ,  "strand")
+        
+        
     all_features_range=GRanges(seqnames=all_features_bed$seqnames, ranges=IRanges(start=all_features_bed$start,end=all_features_bed$end),      
                                strand = all_features_bed$strand, feature=all_features_bed$feature)
     
