@@ -45,6 +45,7 @@ make_matrix <- function(gtf,gene,target_peaks){
     make_bins <- function(TSS, TES, locs, strand,chr){
         if (strand=='+'){
             # might want to check the whole start end thing
+            last=0
             upres=list()
             downres=list()
             i=1
@@ -136,8 +137,12 @@ make_matrix <- function(gtf,gene,target_peaks){
 
 k=Sys.time()
 all_plus_genes <- mclapply(all_genes,function(x) make_matrix(gtf,x,target_peaks),mc.cores = args[2])
-df <- do.call(rbind,all_plus_genes)
-write.table(df,paste0(args[1],'_matrix.tab'), sep = '\t', col.names = T, row.names=T, quote=F)
+df <- do.call(rbind,all_plus_genes)%>%as.data.frame()
+df$Gene=rownames(df)
+line=args[3]
+exp <- read.table('data/lsTPM_by_Line.tsv', stringsAsFactors = F, header=T, sep = '\t')%>%filter(Gene%in%rownames(df),Line==line)
+final <- left_join(df, exp, by=c('Gene'))[,c(12,1:10,14)]
+write.table(final,paste0(args[1],'_matrix.tab'), sep = '\t', col.names = T, row.names=F, quote=F)
 
 m=Sys.time()
 m-k
