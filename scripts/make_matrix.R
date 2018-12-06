@@ -107,6 +107,9 @@ make_matrix <- function(gtf,gene,target_peaks){
 
 k=Sys.time()
 all_plus_genes <- mclapply(all_genes,function(x) make_matrix(gtf,x,target_peaks),mc.cores = args[2])
+df <- do.call(rbind,all_plus_genes)
+write.table(df,paste0(args[1],'_matrix.tab'), sep = '\t', col.names = T, row.names=T, quote=F)
+
 m=Sys.time()
 m-k
 
