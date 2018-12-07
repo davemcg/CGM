@@ -55,12 +55,12 @@ out_df <- intergenic %>%
             `5000` = sum(Distance > 1000 & Distance <= 5000),
             `1000` = sum(Distance > 0 & Distance <= 1000),
             `-1000` = sum(Distance < 0 & Distance <= -1000),
-            `-5000` = sum(Distance < -1000 & Distance <= -5000),
-            `-1e4` = sum(Distance < -5000 & Distance <= -1e4),
-            `-5e4` = sum(Distance < -1e4 & Distance <= -5e4),
-            `-1e5` = sum(Distance < -5e4 & Distance <= -1e5),
-            `-5e5` = sum(Distance < -1e5 & Distance <= -5e5),
-            `-1e6` = sum(Distance < -5e5 & Distance <= -1e6)) %>% 
+            `-5000` = sum(Distance < -1000 & Distance >= -5000),
+            `-1e4` = sum(Distance < -5000 & Distance >= -1e4),
+            `-5e4` = sum(Distance < -1e4 & Distance >= -5e4),
+            `-1e5` = sum(Distance < -5e4 & Distance >= -1e5),
+            `-5e5` = sum(Distance < -1e5 & Distance >= -5e5),
+            `-1e6` = sum(Distance < -5e5 & Distance >= -1e6)) %>% 
   left_join(out_df, .) %>% 
   select(-Peak_Count)
 out_df[is.na(out_df)] <- 0
