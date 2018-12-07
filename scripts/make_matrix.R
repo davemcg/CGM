@@ -1,7 +1,8 @@
 library(dplyr)
 library(GenomicRanges)
-library(gread)
 library(parallel)
+library(data.table)
+sapply(list.files('gread/R',full.names = T),source)
 args=commandArgs(trailingOnly = T)
 # gene='OR4F5'
 #targ_peaks <- 'data/IPSC_ATAC.common_peaks.blackListed.bed'
@@ -14,16 +15,65 @@ gtf_df <- as.data.frame(gtf)
 all_genes <- unique(gtf_df$gene_name)
 #all_genes_plus <- filter(gtf_df, strand=='+')[,'gene_name']%>%unique
 getOption("mc.cores", 2L)
+construct_introns <- function(x, update=TRUE) {
+    stopifnot(is.gtf(x) || is.gff(x))
+    x = as.data.table(x)
+    stopifnot("feature" %chin% names(x), 
+              "transcript_id" %chin% names(x), 
+              update %in% c(TRUE, FALSE))
+    
+    # to please R CMD CHECK
+    feature=seqnames=transcript_id=NULL
+    x_class = copy(class(x))
+    exons = x[feature == "exon"]
+    if (!nrow(exons)) stop("feature == 'exon' returned 0 rows.")
+    setorderv(exons, c("transcript_id", "seqnames", "start", "end", "strand"))
+    introns = exons[, .(seqnames = seqnames[1L], 
+                        start = end[seq_len(.N-1L)]+1L, 
+                        end = start[seq_len(.N-1L)+1L]-1L,
+                        feature = "intron",
+                        strand = strand[1L]), by=transcript_id]
+    introns = na.omit(introns, cols = c("start", "end"))
+    check = introns[, any(start > end), by=transcript_id]
+    if (length(ids <- which(check[["V1"]])))
+        stop("Exons for transcript ids [", paste(ids, collaspse=" "), 
+             "] have start > end")
+    exons[, c(setdiff(names(introns), "transcript_id")) := NULL]
+    exons = unique(shallow(exons, reset_class=TRUE), by="transcript_id")
+    ecols = names(exons)
+    introns[exons, (ecols) := mget(ecols), on="transcript_id"]
+    # reset all exon related cols
+    introns[, grep("^exon", names(introns), value=TRUE) := NA]
+    colorder = names(x)
+    if (update) {
+        x = rbind(x, introns)
+        setorderv(x, c("seqnames", "start", "end"))
+        x = x[, .SD, by="transcript_id"]
+        setattr(x, 'class', x_class)
+        setcolorder(x, colorder)
+        ans = x
+    } else {
+        setcolorder(introns, colorder)
+        setattr(introns, 'class', c("intron", "data.table", "data.frame"))
+        ans = introns
+    }
+    ans
+    #new(class(ans)[1L], as(setDF(ans), "GRanges"))
+}
+
 make_matrix <- function(gtf,gene,target_peaks){
     #a=Sys.time()
+    print(gene)
     gtf_gene <- gtf[elementMetadata(gtf)[,'gene_name']==gene]
     gtf_gene_introns <- construct_introns(gtf_gene, update=TRUE)%>%as.data.frame
     
-    if(any(grepl('appris', gtf_gene_introns[,'tag']))){
+    if(any(grepl('appris_principal', gtf_gene_introns[,'tag']))){
         # there is an appris tag for this gene
         app_ids <- gtf_gene_introns[,'tag']%>%grep('appris',.)%>% gtf_gene_introns[.,'tag']%>% unique
         max=strsplit(app_ids,'_')%>%lapply(function(x)x[[3]])%>%unlist%>%which.max
         gtf_target_tx <- filter(gtf_gene_introns, tag==app_ids[max])
+        if (filter(gtf_target_tx, feature=='transcript')%>%nrow>1) gtf_target_tx <- filter(gtf_target_tx, transcript_id==unique(transcript_id)[1])
+
     }else if(any(gtf_gene_introns[,'transcript_type']%in%c('protein_coding'))){
         #pick the first protein coding transcript
         tx=filter(gtf_gene_introns,transcript_type=='protein_coding')[,'transcript_id']%>%unique%>%na.omit%>%.[[1]]
@@ -140,8 +190,9 @@ all_plus_genes <- mclapply(all_genes,function(x) make_matrix(gtf,x,target_peaks)
 df <- do.call(rbind,all_plus_genes)%>%as.data.frame()
 df$Gene=rownames(df)
 line=args[3]
-exp <- read.table('data/lsTPM_by_Line.tsv', stringsAsFactors = F, header=T, sep = '\t')%>%filter(Gene%in%rownames(df),Line==line)
+exp <- read.table('data/lsTPM_by_Line.tsv', stringsAsFactors = F, header=T, sep = '\t')%>%filter(Line==line)
 final <- left_join(df, exp, by=c('Gene'))[,c(12,1:10,14)]
+final$lsTPM[is.na(final$lsTPM)] <- 0
 write.table(final,paste0(args[1],'_matrix.tab'), sep = '\t', col.names = T, row.names=F, quote=F)
 
 m=Sys.time()
