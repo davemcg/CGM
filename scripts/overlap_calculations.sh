@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 gtf=$1
 peaks=$2
