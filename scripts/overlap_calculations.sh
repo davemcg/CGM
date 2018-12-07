@@ -5,7 +5,7 @@ peaks=$2
 prefix=$3
 
 # cut down gtf to only include gene gtf that are protein coding
-zcat $gtf | \
+gzcat $gtf | \
 	awk '$3 == "gene" {print $0}' | \
 	grep "protein_coding" | \
 	bedtools sort -i - > /tmp/$prefix.gene.gtf
@@ -13,7 +13,7 @@ zcat $gtf | \
 # count peaks overlapping each gtf gene
 bedtools intersect -a /tmp/$prefix.gene.gtf -b $peaks -F 0.5 -c > $prefix.gene_peak_overlaps.data
 # count peaks overlapping each gtf gene exon (can infer intron overlap by subtracting gene_peak - exon_peak
-zcat $gtf | \
+gzcat $gtf | \
 	awk '$3 == "exon" {print $0}' | \
 	grep "protein_coding" | \
 	bedtools intersect -a - -b $peaks -F 0.5 -c | \
