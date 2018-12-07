@@ -63,14 +63,17 @@ construct_introns <- function(x, update=TRUE) {
 
 make_matrix <- function(gtf,gene,target_peaks){
     #a=Sys.time()
+    print(gene)
     gtf_gene <- gtf[elementMetadata(gtf)[,'gene_name']==gene]
     gtf_gene_introns <- construct_introns(gtf_gene, update=TRUE)%>%as.data.frame
     
-    if(any(grepl('appris', gtf_gene_introns[,'tag']))){
+    if(any(grepl('appris_principal', gtf_gene_introns[,'tag']))){
         # there is an appris tag for this gene
         app_ids <- gtf_gene_introns[,'tag']%>%grep('appris',.)%>% gtf_gene_introns[.,'tag']%>% unique
         max=strsplit(app_ids,'_')%>%lapply(function(x)x[[3]])%>%unlist%>%which.max
         gtf_target_tx <- filter(gtf_gene_introns, tag==app_ids[max])
+        if (filter(gtf_target_tx, feature=='transcript')%>%nrow>1) gtf_target_tx <- filter(gtf_target_tx, transcript_id==unique(transcript_id)[1])
+
     }else if(any(gtf_gene_introns[,'transcript_type']%in%c('protein_coding'))){
         #pick the first protein coding transcript
         tx=filter(gtf_gene_introns,transcript_type=='protein_coding')[,'transcript_id']%>%unique%>%na.omit%>%.[[1]]
@@ -183,7 +186,7 @@ make_matrix <- function(gtf,gene,target_peaks){
 
 
 k=Sys.time()
-all_plus_genes <- mclapply(all_genes[1:2],function(x) make_matrix(gtf,x,target_peaks),mc.cores = args[2])
+all_plus_genes <- mclapply(all_genes[1:250],function(x) make_matrix(gtf,x,target_peaks),mc.cores = args[2])
 df <- do.call(rbind,all_plus_genes)%>%as.data.frame()
 df$Gene=rownames(df)
 line=args[3]
