@@ -186,7 +186,7 @@ make_matrix <- function(gtf,gene,target_peaks){
 
 
 k=Sys.time()
-all_plus_genes <- mclapply(all_genes[1:250],function(x) make_matrix(gtf,x,target_peaks),mc.cores = args[2])
+all_plus_genes <- mclapply(all_genes,function(x) make_matrix(gtf,x,target_peaks),mc.cores = args[2])
 df <- do.call(rbind,all_plus_genes)%>%as.data.frame()
 df$Gene=rownames(df)
 line=args[3]
