@@ -16,6 +16,7 @@ bedtools intersect -a /tmp/$prefix.gene.gtf -b $peaks -F 0.5 -c > $prefix.gene_p
 gzcat $gtf | \
 	awk '$3 == "exon" {print $0}' | \
 	grep "protein_coding" | \
+	bedtools merge -i - | \
 	bedtools intersect -a - -b $peaks -F 0.5 -c | \
 	awk '$NF != 0 {print $0}' > $prefix.exon_peak_overlaps.data
 
