@@ -6,6 +6,7 @@ args <- commandArgs(trailingOnly=TRUE)
 prefix <- args[1]
 output_file <- args[2]
 count_file <- args[3]
+gtf <- read_tsv(paste0(prefix,'.gene.gtf'), col_names = F)
 gene <- read_tsv(paste0(prefix,'.gene_peak_overlaps.data'), col_names = F)
 exon <- read_tsv(paste0(prefix,'.exon_peak_overlaps.data'), col_names = F)
 peak <- read_tsv(paste0(prefix, '.peaks_closest_genes.data'), col_names = F)
@@ -25,7 +26,8 @@ processor <- function(df){
     select(ENSGene_Name, Gene_Name, bedtools_value = !!as.name(count_column_name)) 
   df_out
 }
-
+# extract all gene info
+gtf_df <- processor(gtf)
 # process gene based info
 gene_df <- processor(gene) 
 # process exon based info
@@ -54,7 +56,7 @@ out_df <- intergenic %>%
             `1e4` = sum(Distance > 5000 & Distance <= 1e4),
             `5000` = sum(Distance > 1000 & Distance <= 5000),
             `1000` = sum(Distance > 0 & Distance <= 1000),
-            `-1000` = sum(Distance < 0 & Distance <= -1000),
+            `-1000` = sum(Distance < 0 & Distance >= -1000),
             `-5000` = sum(Distance < -1000 & Distance >= -5000),
             `-1e4` = sum(Distance < -5000 & Distance >= -1e4),
             `-5e4` = sum(Distance < -1e4 & Distance >= -5e4),
@@ -64,10 +66,15 @@ out_df <- intergenic %>%
   left_join(out_df, .) %>% 
   select(-Peak_Count)
 out_df[is.na(out_df)] <- 0
+# add gene length (TSS to TES)
 gene$length <- abs(gene$X5-gene$X4)
-gene$ENSGene_Name <- sapply(gene$X9, function(x)strsplit(x,'"')%>%unlist%>%.[[2]])
+gene$ENSGene_Name <- sapply(gene$X9, function(x)strsplit(x,'"') %>% unlist %>% .[[2]])
 counts <- read_csv(count_file,col_names = c("Gene_Name","Line","lsTPM" , "log2(lsTPM)" ,"Rank","TF" ))
 out_df <- left_join(out_df, gene[,c("ENSGene_Name",'length')],"ENSGene_Name")%>%
               left_join(counts[,c('Gene_Name','lsTPM')],by='Gene_Name')
 out_df$lsTPM[is.na(out_df$lsTPM)] <- 0
+
+# finally add in missing genes
+out_df <- left_join(gtf_df %>% select(ENSGene_Name, Gene_Name), out_df ) %>% arrange(Gene_Name)
+out_df[is.na(out_df)] <- 0
 write_tsv(out_df, path = output_file )
