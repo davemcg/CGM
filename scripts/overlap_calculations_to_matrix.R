@@ -5,8 +5,9 @@ args <- commandArgs(trailingOnly=TRUE)
 
 prefix <- args[1]
 output_file <- args[2]
+count_file <- args[3]
 # count file not required
-if (missing(args[3])){
+if (missing(count_file)){
   count_file <- NA
 } else {count_file <- args[3]}
 
