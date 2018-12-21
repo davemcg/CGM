@@ -3,7 +3,7 @@ set -euo pipefail
 
 gtf=$1
 peaks=$2
-prefix=$1_$2
+prefix=`basename "$1"`_`basename "$2"`
 
 # cut down gtf to only include gene gtf that are protein coding
 gzcat $gtf | \
