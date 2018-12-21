@@ -5,7 +5,11 @@ args <- commandArgs(trailingOnly=TRUE)
 
 prefix <- args[1]
 output_file <- args[2]
-count_file <- args[3]
+# count file not required
+if (missing(args[3])){
+  count_file <- NA
+} else {count_file <- args[3]}
+
 gtf <- read_tsv(paste0(prefix,'.gene.gtf'), col_names = F)
 gene <- read_tsv(paste0(prefix,'.gene_peak_overlaps.data'), col_names = F)
 exon <- read_tsv(paste0(prefix,'.exon_peak_overlaps.data'), col_names = F)
@@ -69,12 +73,16 @@ out_df[is.na(out_df)] <- 0
 # add gene length (TSS to TES)
 gene$length <- abs(gene$X5-gene$X4)
 gene$ENSGene_Name <- sapply(gene$X9, function(x)strsplit(x,'"') %>% unlist %>% .[[2]])
-counts <- read_csv(count_file,col_names = c("Gene_Name","Line","lsTPM" , "log2(lsTPM)" ,"Rank","TF" ))
-out_df <- left_join(out_df, gene[,c("ENSGene_Name",'length')],"ENSGene_Name")%>%
-              left_join(counts[,c('Gene_Name','lsTPM')],by='Gene_Name')
-out_df$lsTPM[is.na(out_df$lsTPM)] <- 0
 
-# finally add in missing genes
+# if count file provided, then attach
+if (!is.na(count_file)){
+  counts <- read_csv(count_file,col_names = c("Gene_Name","Line","lsTPM" , "log2(lsTPM)" ,"Rank","TF" ))
+  out_df <- left_join(out_df, gene[,c("ENSGene_Name",'length')],"ENSGene_Name")%>%
+    left_join(counts[,c('Gene_Name','lsTPM')],by='Gene_Name')
+  out_df$lsTPM[is.na(out_df$lsTPM)] <- 0
+}
+
+# finally add in missing genes (present in gtf, not in input, would be genes with 0 peaks near)
 out_df <- left_join(gtf_df %>% select(ENSGene_Name, Gene_Name), out_df ) %>% arrange(Gene_Name)
 out_df[is.na(out_df)] <- 0
 write_tsv(out_df, path = output_file )
