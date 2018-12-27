@@ -11,10 +11,10 @@ if (missing(count_file)){
   count_file <- NA
 } else {count_file <- args[3]}
 
-gtf <- read_tsv(paste0(prefix,'.gene.gtf'), col_names = F)
-gene <- read_tsv(paste0(prefix,'.gene_peak_overlaps.data'), col_names = F)
-exon <- read_tsv(paste0(prefix,'.exon_peak_overlaps.data'), col_names = F)
-peak <- read_tsv(paste0(prefix, '.peaks_closest_genes.data'), col_names = F)
+gtf <- read_tsv(paste0('/tmp/',prefix,'.gene.gtf'), col_names = F)
+gene <- read_tsv(paste0('/tmp/',prefix,'.gene_peak_overlaps.data'), col_names = F)
+exon <- read_tsv(paste0('/tmp/',prefix,'.exon_peak_overlaps.data'), col_names = F)
+peak <- read_tsv(paste0('/tmp/',prefix, '.peaks_closest_genes.data'), col_names = F)
 
 processor <- function(df){
   info_column_name <- paste0('X', grep('gene_id', df[1,]))
