@@ -1,0 +1,155 @@
+---
+title: "CGM"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data
+
+read in CGM data and retreieve genes associated with GO term. I picked GO:0007601(visual perception) since it has 200 genes
+
+functions 
+
+```{r message=FALSE , results = 'hide'}
+
+library(tidyverse)
+library(caret)
+library(PRROC)
+library(mlbench)
+set.seed(121212)
+setwd('~/NIH/CGM/')
+
+read_data <- function(filename,go_id){
+    data<- read_tsv(filename) %>% dplyr::select(-ENSGene_Name) %>% .[!duplicated(.['Gene_Name']),] %>% as.data.frame()
+    any(is.na(data))
+    mart <- biomaRt::useMart(biomart = 'ENSEMBL_MART_ENSEMBL', dataset = 'hsapiens_gene_ensembl')
+    gene_list <- biomaRt::getBM(attributes = 'external_gene_name',filters = 'go',values = go_id,mart = mart)%>%pull(external_gene_name)
+    data$in_go_set <- ifelse(data$Gene_Name%in%gene_list,'in_set','not_in_set')
+    data <- data %>% select(-Gene_Name)
+}
+run_analysis <- function(data, model, tr_ctrl){
+    #proably doing this wrong
+   idx=createDataPartition(data$in_go_set,p=.75)[[1]]
+   data <- preProcess(data,method=c("center", "scale"))%>%predict(data)
+   d_train=data[idx,]
+   d_test=data[-idx,]
+   set.seed(121212)
+   fit <- train(in_go_set ~ . , data = d_train,
+                method= model,
+                trControl=tr_ctrl)
+   prediction_table <- data.frame(in_go_set=d_test$in_go_set, predict(fit,d_test, type = 'prob'), 
+                                  prediction=predict(fit,d_test))# yup im lazy
+   index_1 <- prediction_table$in_go_set=='in_set'
+   index_2 <- prediction_table$in_go_set=='not_in_set'
+   
+   cm <- confusionMatrix(prediction_table$prediction,d_test$in_go_set%>%as.factor)
+   pr_plot=pr.curve(prediction_table$in_set[index_1],prediction_table$in_set[index_2],curve = T)
+   return(list(prediction_table,cm,pr_plot))
+}
+compare_sampling <- function(data,model){
+    df=data.frame()
+    samp_types <- c('none','down','up','smote')
+    for(samp in samp_types){
+        tr_ctrl <- trainControl(method = 'cv', number = 5, classProbs = T,sampling = samp)
+        if(samp == 'none') tr_ctrl <- trainControl(method = 'cv', number = 5, classProbs = T)
+        res <- run_analysis(data = data,model = model, tr_ctrl = tr_ctrl)
+        k= res[[3]]$curve %>% as.data.frame %>% rename(Precision=V1,Recall=V2) %>% mutate(samp=samp, auc=res[[3]]$auc.integral)
+        df=rbind(df,k)
+        writeLines(paste('\n',model,samp,'\n'))
+        print('confusion matrix')
+        print(res[[2]]$table)
+        print('AUC-PR')
+        print(res[[3]]$auc.integral)
+    }
+    print(ggplot(data = df,aes(x=Recall,y=Precision,color=samp))+geom_line()+ggtitle(label = model)+theme_minimal())
+    
+    return(df %>% mutate(model=model))
+}
+
+
+
+```
+```{r}
+data <- read_data('GFP_RPE_CGM.tsv','GO:0007601')
+summary(data)
+```
+
+
+I also made a test data set using the BreastCancer data set from mlbench, which is also an unbalanced data set, just to make sure things work the way they should be 
+
+```{r  message=FALSE, results = 'hide'}
+data("BreastCancer")
+col <- BreastCancer%>%mutate(in_go_set= ifelse(Class=='benign','in_set','not_in_set'),Class=NULL,Id=NULL)%>%pull(in_go_set)
+t_data <- BreastCancer%>%mutate(in_go_set= ifelse(Class=='benign','in_set','not_in_set'),Class=NULL,Id=NULL)%>%
+    apply(2,as.numeric)%>%as.data.frame%>% mutate(in_go_set=col) #data was a little too
+t_data[is.na(t_data)] <- 0
+
+```
+```{r }
+summary(BreastCancer)
+```
+
+
+## Analysis
+the first model I tried was random forests, through the ranger package
+
+test data
+
+```{r}
+test <- compare_sampling(data = t_data,model = 'ranger')
+```
+
+the CGM data 
+
+```{r}
+cgm_dat <- compare_sampling(data = data,model = 'ranger')
+
+```
+
+that clearly did not work well lets test out a new model - glm
+
+
+```{r}
+cgm_bglm <- compare_sampling(data = data,model = 'bayesglm')
+```
+
+This also did not work, try lets try the other data sets 
+
+RPE RFP sample - Random Forest
+
+```{r}
+rfp_data <- read_data(filename ='RFP_RPE_CGM.tsv', go_id ='GO:0007601' )
+rfp_ranger <- compare_sampling(data = rfp_data, model = 'ranger')
+```
+
+RPE RFP sample - glm
+
+```{r}
+rfp_bglm <- compare_sampling(data = rfp_data, model = 'bayesglm')
+```
+
+iPSC sample - Random Forest
+
+```{r}
+ipsc_data <- read_data(filename ='IPSC_CGM.tsv', go_id ='GO:0007601' )
+ipsc_ranger <- compare_sampling(data = ipsc_data, model = 'ranger')
+```
+
+iPSC sample - glm
+
+```{r}
+ipsc_bglm <- compare_sampling(data = ipsc_data, model = 'bayesglm')
+```
+
+
+
+
+
+
+
+
