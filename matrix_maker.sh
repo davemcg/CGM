@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 module load bedtools
 module load R
 
-prefix=$1_$2
+prefix=`basename "$1"`_`basename "$2"`
 
 bash scripts/overlap_calculations.sh $gtf $peaks $prefix
 Rscript scripts/overlap_calculations_to_matrix.R $prefix $output $counts
