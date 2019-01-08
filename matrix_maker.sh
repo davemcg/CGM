@@ -8,9 +8,6 @@ counts=$4
 
 cd "$(dirname "$0")"
 
-module load bedtools
-module load R
-
 prefix=`basename "$1"`_`basename "$2"`
 
 bash scripts/overlap_calculations.sh $gtf $peaks $prefix
