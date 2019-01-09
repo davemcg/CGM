@@ -87,7 +87,7 @@ if (!is.na(count_file)){
 
 # finally add in missing genes (present in gtf, not in input, would be genes with 0 peaks near)
 out_df <- left_join(gtf_df %>% select(ENSGene_Name, Gene_Name), out_df ) %>% 
-  left_join(., gene %>% select(ENSGene_Name, Gene_length = length))
+  left_join(., gene %>% select(ENSGene_Name, Gene_length = length)) %>%  # add length info
   arrange(Gene_Name)
 out_df[is.na(out_df)] <- 0
 write_tsv(out_df, path = output_file )
