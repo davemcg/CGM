@@ -48,7 +48,9 @@ out_df[is.na(out_df)] <- 0
 out_df <- out_df %>% rowwise() %>% mutate(Intron_Count = max(0, Peak_Count - Exon_Count))
 
 # process intergenic peaks
-intergenic <- processor(peak %>% filter(grepl('gene_id', X13))) %>% 
+# fine gene info column first
+gene_col <- colnames(peak)[grepl('gene_id', peak[1,])]
+intergenic <- processor(peak %>% filter(grepl('gene_id', !!as.name(gene_col)))) %>% 
   select(ENSGene_Name, Distance = bedtools_value)
 # calculate peaks in each window, upstream and downstream of gene
 out_df <- intergenic %>% 
