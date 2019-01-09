@@ -36,7 +36,7 @@ gtf_df <- processor(gtf)
 # process gene based info
 gene_df <- processor(gene) 
 # process exon based info
-exon_df <- processor(exon)
+exon_df <- processor(exon) %>% group_by(ENSGene_Name) %>% summarise(Gene_Name = max(Gene_Name), bedtools_value = sum(bedtools_value)) %>% ungroup()
 # join together, remove NA, count intron peaks
 out_df <- left_join(gene_df %>% select(ENSGene_Name,
                                        Gene_Name,
@@ -86,6 +86,8 @@ if (!is.na(count_file)){
 }
 
 # finally add in missing genes (present in gtf, not in input, would be genes with 0 peaks near)
-out_df <- left_join(gtf_df %>% select(ENSGene_Name, Gene_Name), out_df ) %>% arrange(Gene_Name)
+out_df <- left_join(gtf_df %>% select(ENSGene_Name, Gene_Name), out_df ) %>% 
+  left_join(., gene %>% select(ENSGene_Name, Gene_length = length))
+  arrange(Gene_Name)
 out_df[is.na(out_df)] <- 0
 write_tsv(out_df, path = output_file )
