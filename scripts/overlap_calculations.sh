@@ -11,15 +11,15 @@ gzcat $gtf | \
 	grep "protein_coding" | \
 	bedtools sort -i - > /tmp/$prefix.gene.gtf
 
-# count peaks overlapping each gtf gene
-bedtools intersect -a /tmp/$prefix.gene.gtf -b $peaks -F 0.5 -c > /tmp/$prefix.gene_peak_overlaps.data
-# count peaks overlapping each gtf gene exon (can infer intron overlap by subtracting gene_peak - exon_peak
+# return peaks overlapping each gtf gene
+bedtools intersect -a /tmp/$prefix.gene.gtf -b $peaks -F 0.5 -wa -wb > /tmp/$prefix.gene_peak_overlaps.data
+# return peaks overlapping each gtf gene exon (can infer intron overlap by subtracting gene_peak - exon_peak
 gzcat $gtf | \
 	awk '$3 == "exon" {print $0}' | \
 	grep "protein_coding" | \
 	bedtools sort -i - | \
 	bedtools merge -s -c 9 -o "first" -i - | 
-	bedtools intersect -a - -b $peaks -F 0.5 -c | \
+	bedtools intersect -a - -b $peaks -F 0.5 -wa -wb | \
 	awk '$NF != 0 {print $0}' > /tmp/$prefix.exon_peak_overlaps.data
 
 # find 10 closest genes to each peak 
